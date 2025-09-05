@@ -2,5 +2,5 @@
 Some hands-on machine learning prototype code  
 Train on liver data and fine tune for spleen data  
 
-![Preview](https://github.com/shiyu2011/ml/blob/main/preview.png](https://github.com/shiyu2011/cv-tracking/blob/main/depth_stereo.png)
+![Preview](https://github.com/shiyu2011/ml/blob/main/preview.png)
 
