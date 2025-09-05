@@ -13,7 +13,7 @@ test_images = test_images.reshape((test_images.shape[0], 28, 28, 1))
 train_images, test_images = train_images / 255.0, test_images / 255.0
 
 #one-hot encode the labels
-train_labels = to_categorical(train_labels)
+train_labels = to_categorical(train_labels) #[n,] -> [n, 10]
 
 #build the model
 model = Sequential()

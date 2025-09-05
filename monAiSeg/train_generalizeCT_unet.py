@@ -101,7 +101,7 @@ def unfreeze_decoder_and_head(net, idx_set = []):
 def main():
     #arg
     ap = argparse.ArgumentParser()
-    ap.add_argument("--root-dir", type=str, default="/home/rxm/ai-med-10day/", help="data root dir")
+    ap.add_argument("--root-dir", type=str, default="./", help="data root dir")
     ap.add_argument("--run-dir", type=str, default="./runs/liver_unet", help="where to save logs and models")
     ap.add_argument("--train-organ", type=str, default="liver", help="which organ to train")
     ap.add_argument("--is-fineTune", type=bool, default=True, help="whether to fine-tune from pretrained model")
