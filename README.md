@@ -1,3 +1,6 @@
-# ml
+#machine learning
+Some hands-on machine learning prototype code  
+Train on liver data and fine tune for spleen data  
 
-some hands-on machine learning prototype code
+![Preview](https://github.com/shiyu2011/ml/blob/main/preview.png)
+
