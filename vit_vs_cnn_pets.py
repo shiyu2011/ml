@@ -19,13 +19,58 @@ from typing import Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, random_split
-from torchvision import datasets, transforms
+from torch.utils.data import DataLoader, Dataset
+from torchvision import transforms
 
 import timm
+import numpy as np
+import glob, json
+from PIL import Image
 
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD  = (0.229, 0.224, 0.225)
+
+def get_files(data_dir, subFolder, run_dir, seed=0, val_ratio=0.2):
+        #get all file names of images and labels
+    imgs = sorted(glob.glob(os.path.join(data_dir, subFolder, "*.jpg")))
+    
+    rng = np.random.RandomState(seed)
+    idx = np.arange(len(imgs))
+    rng.shuffle(idx)
+    # Reserve a portion for validation
+    v = int(len(imgs) * val_ratio)
+    val_idx, train_idx = idx[:v], idx[v:]
+    train_files = [{"image": imgs[i]} for i in train_idx]
+    val_files = [{"image": imgs[i]} for i in val_idx]
+    
+    split = {
+        "seed": seed,
+        "train": [Path(imgs[i]).name for i in train_idx],
+        "val": [Path(imgs[i]).name for i in val_idx]
+    }
+    
+    with open(run_dir / "split.json", "w") as f:
+        json.dump(split, f, indent=2)
+    print(f"save split to {run_dir / 'split.json'}, train {len(train_files)}, val {len(val_files)}")
+    return train_files, val_files
+
+class PetDataset(Dataset):
+    def __init__(self, files, class_to_idx, transform=None):
+        self.files = files
+        self.class_to_idx = class_to_idx
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.files)
+
+    def __getitem__(self, idx):
+        image_path = self.files[idx]["image"]
+        label_name = Path(image_path).name.split("_")[0]
+        label = self.class_to_idx[label_name]
+        image = Image.open(image_path).convert("RGB")
+        if self.transform:
+            image = self.transform(image)
+        return image, label
 
 def get_dataloaders(data_root: str, img_size: int = 224, batch_size: int = 64, num_workers: int = 4, val_split: float = 0.15) -> Tuple[DataLoader, DataLoader, int]:
     tfm_train = transforms.Compose([
@@ -42,19 +87,18 @@ def get_dataloaders(data_root: str, img_size: int = 224, batch_size: int = 64, n
         transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
     ])
 
-    trainval = datasets.OxfordIIITPet(root=data_root, split='trainval', target_types='category', download=True, transform=tfm_train)
-    num_classes = len(trainval.classes)
+    train_files, val_files = get_files(data_root, "images", Path("./"), seed=0, val_ratio=val_split)
 
-    # Split train/val from trainval for monitoring (keep test as held-out if desired)
-    n_total = len(trainval)
-    n_val = int(n_total * val_split)
-    n_train = n_total - n_val
-    train_set, val_set = random_split(trainval, [n_train, n_val], generator=torch.Generator().manual_seed(42))
-    # Use eval transforms for val split
-    val_set.dataset.transform = tfm_eval
+    # Derive class mapping from file names (e.g., Abyssinian_1.jpg -> class Abyssinian)
+    class_names = sorted({Path(f["image"]).name.split("_")[0] for f in train_files + val_files})
+    class_to_idx = {name: idx for idx, name in enumerate(class_names)}
+    num_classes = len(class_names)
 
-    train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True)
-    val_loader   = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
+    train_dataset = PetDataset(train_files, class_to_idx, transform=tfm_train)
+    val_dataset = PetDataset(val_files, class_to_idx, transform=tfm_eval)
+
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True)
+    val_loader   = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
     return train_loader, val_loader, num_classes
 
 def build_model(model_name: str, num_classes: int, pretrained: bool = True, finetune: str = 'linear') -> nn.Module:
@@ -116,8 +160,7 @@ def train_one(model: nn.Module, train_loader: DataLoader, val_loader: DataLoader
             optimizer.zero_grad(set_to_none=True)
             with torch.cuda.amp.autocast(enabled=amp_enabled):
                 outputs = model(images)
-                targets_one_hot = F.one_hot(targets, num_classes=outputs.size(-1)).to(dtype=outputs.dtype)
-                loss = criterion(outputs, targets_one_hot)
+                loss = criterion(outputs, targets)
             scaler.scale(loss).backward() #scales the loss, and calls backward() on the scaled loss
             scaler.step(optimizer) #unscales gradients and calls or skips optimizer.step()
             scaler.update() #updates the scale for next iteration
