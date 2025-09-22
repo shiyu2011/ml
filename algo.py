@@ -1,5 +1,55 @@
 from typing import List, Tuple
 
+def max_pair_durations(durationsMin: List[int], flightDurationMin: int) -> tuple[int, int]:
+    
+    T = flightDurationMin - 30
+    n = len(durationsMin)
+    
+    if n < 2:
+        return (-1, -1)
+    
+    #keep origianl indices, osrt by duration
+    with_idx = sorted((t, i) for i, t in enumerate(durationsMin))
+    best_i, best_j = -1, -1
+    best_sum = -1
+    best_longest = -1
+    
+    l, r = 0, n-1
+    while l < r:
+        t_l, i_l = with_idx[l]
+        t_r, i_r = with_idx[r]
+        s = t_l + t_r 
+        if s > T:
+            r -= 1
+            continue
+        
+        #s<=T is valid; check/update best
+        longest=max(t_l, t_r)
+        if s > best_sum or (s == best_sum and longest > best_longest):
+            best_sum = s
+            best_longest = longest
+            best_i, best_j = i_l, i_r
+            
+        l +=1
+        
+    return (best_i, best_j)
+
+def test_max_pair_durations():
+    durations = [90, 85, 75, 60, 120, 150, 125]
+    d = 250
+    res = max_pair_durations(
+        durations,
+        d
+    )
+    
+    assert set(res) == {0, 6}, f"expected (0, 6) in any order, got{res}"
+    print("Test passed: best pair is", res)    
+    
+
+#test 1st question    
+test_max_pair_durations()
+
+
 def is_valid(st) -> bool:
     m = {")": "(", "}": "{", "]": "["}
     openSet = set(m.values())
@@ -336,7 +386,49 @@ def solve_min_rooms(vec: List[List[int, int]]) -> int:
     return needed
 
 
+def top_k_words(vec:List[str], k:int) -> List[str]:
+    dic = {}
+    for c in vec:
+        dic[c] = dic.get(c, 0) + 1
+    
+    sorted_word= sorted(dic, key=lambda k: (-dic[k], k)) #sort only sort key and iterater only on key
+    return sorted_word[:k] 
 
+def find_nearest_city(cities: List[Tuple[str, int, int]], query: str) -> str:
+    cities1 = sorted(cities, key=lambda x: (x[1], x[2], x[0])) #cloest in terms of y on the same x
+    cities2 = sorted(cities, key=lambda x: (x[2], x[1], x[0])) #closet in terms of x on the same y
+    
+    candidates = []
+    for i, city in enumerate(cities1):
+        if city[0] == query:
+            p = i
+            searchIdx = [-1, 1] 
+            for k in range(0, len(searchIdx)):
+                pN = p + searchIdx[k]
+                if pN >= len(cities1) or pN < 0:
+                    continue
+                elif city[1] == cities1[pN][1]:
+                    candidates.append(cities1[pN])
 
-            
+    for i, city in enumerate(cities2):
+        if city[0] == query:
+            p = i
+            searchIdx = [-1, 1] 
+            for k in range(0, len(searchIdx)):
+                pN = p + searchIdx[k]
+                if pN >= len(cities2) or pN < 0:
+                    continue
+                elif city[2] == cities2[pN][2]:
+                    candidates.append(cities1[pN])  
+    cx, cy, cn = cities2[p][1], cities2[p][2], cities2[p][0]             
+    best = ""
+    best_dist = float("inf")
+    for name, x, y in candidates:
+        dist = abs(x - cx) + abs(y - cy)
+        if dist < best_dist or dist == best_dist and name < best:
+            best = name
+    return best
+    
+                    
+                 
         
